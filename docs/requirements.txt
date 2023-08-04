@@ -21,3 +21,5 @@ myst-parser
 maturin
 jinja2
 ipython
+datafusion
+pandas
