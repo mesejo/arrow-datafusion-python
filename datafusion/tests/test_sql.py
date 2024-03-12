@@ -22,9 +22,10 @@ import pyarrow as pa
 import pyarrow.dataset as ds
 import pytest
 
-from datafusion import udf
+from datafusion import udf, numba_udf
 
 from . import generic as helpers
+from .generic import Timer
 
 
 def test_no_table(ctx):
@@ -333,6 +334,114 @@ def test_udf(
     result = batches[0].column(0)
 
     assert result == pa.array(expected_values)
+
+
+def square(x: np.array):
+    out = np.empty(len(x))
+    for i, xi in enumerate(x):
+        out[i] = xi * xi
+
+    return out
+
+
+def some_sum(a, b):
+    out = np.empty(len(a))
+    for i, (ai, bi) in enumerate(zip(a, b)):
+        out[i] = 3 * ai + 2 * bi
+
+    return out
+
+
+@pytest.mark.parametrize(
+    (
+        "fn",
+        "input_types",
+        "output_type",
+        "input_values",
+        "expected_values",
+        "column_names",
+    ),
+    [
+        (
+            square,
+            [pa.float64()],
+            pa.float64(),
+            [np.repeat(2.0, 100)],
+            np.repeat(4.0, 100),
+            ["a"],
+        ),
+        (
+            some_sum,
+            [pa.float64(), pa.float64()],
+            pa.float64(),
+            [np.repeat(1.0, 100), np.repeat(1.0, 100)],
+            np.repeat(5.0, 100),
+            ["a", "b"],
+        ),
+    ],
+)
+def test_numba_udf(
+    ctx,
+    tmp_path,
+    fn,
+    input_types,
+    output_type,
+    input_values,
+    expected_values,
+    column_names,
+):
+    # write to disk
+    path = helpers.write_parquet_columns(
+        tmp_path / "a.parquet", [pa.array(v) for v in input_values], column_names
+    )
+    ctx.register_parquet("t", path)
+
+    fun_name = fn.__qualname__.lower()
+    func = numba_udf(
+        fn, input_types, output_type, name=fun_name, volatility="immutable"
+    )
+    ctx.register_udf(func)
+    query = f"SELECT {fun_name}({','.join(column_names)}) AS tt FROM t"
+    batches = ctx.sql(query).collect()
+    result = batches[0].column(0)
+
+    assert result == pa.array(expected_values)
+
+
+def test_numba_udf_speed(ctx, tmp_path):
+    input_types = [pa.float64(), pa.float64()]
+    output_type = pa.float64()
+    input_values = [np.repeat(1.0, 10_000), np.repeat(1.0, 10_000)]
+    expected_values = np.repeat(5.0, 10_000)
+    column_names = ["a", "b"]
+
+    # write to disk
+    path = helpers.write_parquet_columns(
+        tmp_path / "a.parquet", [pa.array(v) for v in input_values], column_names
+    )
+    ctx.register_parquet("t", path)
+
+    func = numba_udf(
+        some_sum, input_types, output_type, name="some_sum", volatility="immutable"
+    )
+    ctx.register_udf(func)
+    query = "SELECT some_sum(a, b) AS tt FROM t"
+
+    with Timer("numba + compilation") as timer:
+        batches = ctx.sql(query).collect()
+    compiled_time = timer.elapsed
+
+    result = np.concatenate([batch.to_pandas().to_numpy()[:, 0] for batch in batches])
+    assert np.allclose(result, expected_values)
+
+    with Timer("numba") as timer:
+        batches = ctx.sql(query).collect()
+    executed_time = timer.elapsed
+
+    result = np.concatenate([batch.to_pandas().to_numpy()[:, 0] for batch in batches])
+    assert np.allclose(result, expected_values)
+
+    assert executed_time < compiled_time
 
 
 _null_mask = np.array([False, True, False])

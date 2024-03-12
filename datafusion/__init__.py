@@ -24,6 +24,10 @@ except ImportError:
     import importlib_metadata
 
 import pyarrow as pa
+import awkward as ak
+from numba import njit
+
+import numpy as np
 
 from ._internal import (
     AggregateUDF,
@@ -201,6 +205,42 @@ def udf(func, input_types, return_type, volatility, name=None):
         return_type=return_type,
         volatility=volatility,
     )
+
+
+def numba_udf(func, input_types, return_type, volatility, name=None):
+    """
+    Create a new numba compiled User Defined Function
+    """
+
+    if not callable(func):
+        raise TypeError("`func` argument must callable")
+    if name is None:
+        name = func.__qualname__.lower()
+
+    return ScalarUDF(
+        name=name,
+        func=wrap_with_numba(func),
+        input_types=input_types,
+        return_type=return_type,
+        volatility=volatility,
+    )
+
+
+def wrap_with_numba(fun):
+    def wrapper(*args):
+        # convert to awkward
+        arrays = [np.asarray(ak.from_arrow(arg)) for arg in args]
+
+        # jit compile the function
+        numba_fun = njit(fun)
+
+        # compute the function
+        ak_result = numba_fun(*arrays)
+
+        # convert to arrow
+        return ak.to_arrow(ak_result)
+
+    return wrapper  # apply the numba JIT
 
 
 def udaf(accum, input_type, return_type, state_type, volatility, name=None):

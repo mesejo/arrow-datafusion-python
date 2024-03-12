@@ -24,6 +24,8 @@ import pyarrow.csv
 # used to write parquet files
 import pyarrow.parquet as pq
 
+import timeit
+
 
 def data():
     np.random.seed(1)
@@ -79,3 +81,28 @@ def write_parquet(path, data):
     table = pa.Table.from_arrays([data], names=["a"])
     pq.write_table(table, path)
     return str(path)
+
+
+def write_parquet_columns(path, data, names):
+    table = pa.Table.from_arrays(data, names=names)
+    pq.write_table(table, path)
+    return str(path)
+
+
+class Timer(object):
+    def __init__(self, task="action", verbose=True, level=0):
+        self.task = task
+        self.verbose = verbose
+        self.timer = timeit.default_timer
+        self.level = level
+
+    def __enter__(self):
+        self.start = self.timer()
+        return self
+
+    def __exit__(self, *args):
+        end = self.timer()
+        self.elapsed_secs = end - self.start
+        self.elapsed = self.elapsed_secs * 1000  # millisecs
+        if self.verbose:
+            print("\t" * self.level + "%s took:\t% 7d ms" % (self.task, self.elapsed))
