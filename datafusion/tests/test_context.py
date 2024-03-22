@@ -415,8 +415,3 @@ def test_read_csv_compressed(ctx, tmp_path):
 def test_read_parquet(ctx):
     csv_df = ctx.read_parquet(path="parquet/data/alltypes_plain.parquet")
     csv_df.show()
-
-
-def test_read_avro(ctx):
-    csv_df = ctx.read_avro(path="testing/data/avro/alltypes_plain.avro")
-    csv_df.show()

@@ -15,5 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+pub(crate) mod builder;
 pub mod exceptions;
 pub mod logical;
+pub(crate) mod parser;

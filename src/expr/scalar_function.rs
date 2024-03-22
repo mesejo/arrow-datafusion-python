@@ -41,6 +41,13 @@ pub struct PyBuiltinScalarFunction {
     scalar_function: BuiltinScalarFunction,
 }
 
+#[pymethods]
+impl PyBuiltinScalarFunction {
+    pub fn name(&self) -> String {
+        self.scalar_function.name().to_string()
+    }
+}
+
 impl From<BuiltinScalarFunction> for PyBuiltinScalarFunction {
     fn from(scalar_function: BuiltinScalarFunction) -> PyBuiltinScalarFunction {
         PyBuiltinScalarFunction { scalar_function }

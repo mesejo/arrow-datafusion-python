@@ -17,6 +17,7 @@
 
 use pyo3::{basic::CompareOp, prelude::*};
 use std::convert::{From, Into};
+use std::str::FromStr;
 
 use datafusion::arrow::datatypes::DataType;
 use datafusion::arrow::pyarrow::PyArrowType;
@@ -27,16 +28,21 @@ use datafusion_expr::{
     expr::{AggregateFunction, InList, InSubquery, ScalarFunction, Sort, WindowFunction},
     lit,
     utils::exprlist_to_fields,
-    Between, BinaryExpr, Case, Cast, Expr, GetFieldAccess, GetIndexedField, Like, LogicalPlan,
-    Operator, TryCast,
+    Between, BinaryExpr, BuiltinScalarFunction, Case, Cast, Expr, GetFieldAccess, GetIndexedField,
+    Like, LogicalPlan, Operator, TryCast,
 };
 
 use crate::common::data_type::{DataTypeMap, RexType};
 use crate::errors::{py_datafusion_err, py_runtime_err, py_type_err, DataFusionError};
 use crate::expr::aggregate_expr::PyAggregateFunction;
 use crate::expr::binary_expr::PyBinaryExpr;
+use crate::expr::case::PyCase;
+use crate::expr::cast::PyCast;
 use crate::expr::column::PyColumn;
 use crate::expr::literal::PyLiteral;
+use crate::expr::ordered::PyOrdered;
+use crate::expr::scalar_function::PyScalarFunction;
+use crate::expr::wildcard::PyWildcard;
 use crate::sql::logical::PyLogicalPlan;
 
 use self::alias::PyAlias;
@@ -77,6 +83,7 @@ pub mod like;
 pub mod limit;
 pub mod literal;
 pub mod logical_node;
+pub mod ordered;
 pub mod placeholder;
 pub mod projection;
 pub mod repartition;
@@ -89,6 +96,7 @@ pub mod subquery;
 pub mod subquery_alias;
 pub mod table_scan;
 pub mod union;
+mod wildcard;
 pub mod window;
 
 /// A PyExpr that can be used on a DataFrame
@@ -138,6 +146,15 @@ impl PyExpr {
             Expr::IsNotFalse(expr) => Ok(PyIsNotFalse::new(*expr.clone()).into_py(py)),
             Expr::IsNotUnknown(expr) => Ok(PyIsNotUnknown::new(*expr.clone()).into_py(py)),
             Expr::Negative(expr) => Ok(PyNegative::new(*expr.clone()).into_py(py)),
+            Expr::Sort(sort) => Ok(PyOrdered::from(sort.clone()).into_py(py)),
+            Expr::Cast(cast) => Ok(PyCast::from(cast.clone()).into_py(py)),
+            Expr::ScalarFunction(expr) => Ok(PyScalarFunction::new(
+                BuiltinScalarFunction::from_str(expr.func_def.name()).unwrap(),
+                expr.args.clone(),
+            )
+            .into_py(py)),
+            Expr::Case(case) => Ok(PyCase::from(case.clone()).into_py(py)),
+            Expr::Wildcard { qualifier } => Ok(PyWildcard::new(qualifier.clone()).into_py(py)),
             Expr::AggregateFunction(expr) => {
                 Ok(PyAggregateFunction::from(expr.clone()).into_py(py))
             }
@@ -698,5 +715,7 @@ pub(crate) fn init_module(m: &PyModule) -> PyResult<()> {
     m.add_class::<window::PyWindow>()?;
     m.add_class::<window::PyWindowFrame>()?;
     m.add_class::<window::PyWindowFrameBound>()?;
+    m.add_class::<PyOrdered>()?;
+    m.add_class::<PyWildcard>()?;
     Ok(())
 }

@@ -37,7 +37,6 @@ substrait = ["dep:datafusion-substrait"]
 tokio = { version = "1.35", features = ["macros", "rt", "rt-multi-thread", "sync"] }
 rand = "0.8"
 pyo3 = { version = "0.20", features = ["extension-module", "abi3", "abi3-py38"] }
-datafusion = { version = "36.0.0", features = ["pyarrow", "avro"] }
 datafusion-common = { version = "36.0.0", features = ["pyarrow"] }
 datafusion-expr = "36.0.0"
 datafusion-functions-array = "36.0.0"
@@ -55,6 +54,7 @@ parking_lot = "0.12"
 regex-syntax = "0.8.1"
 syn = "2.0.43"
 url = "2.2"
+datafusion = "36.0.0"
 
 [build-dependencies]
 pyo3-build-config = "0.20.0"

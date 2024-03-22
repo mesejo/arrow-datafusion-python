@@ -15,19 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "mimalloc")]
-use mimalloc::MiMalloc;
-use pyo3::prelude::*;
-
 // Re-export Apache Arrow DataFusion dependencies
 pub use datafusion;
 pub use datafusion_common;
 pub use datafusion_expr;
 pub use datafusion_optimizer;
 pub use datafusion_sql;
-
 #[cfg(feature = "substrait")]
 pub use datafusion_substrait;
+#[cfg(feature = "mimalloc")]
+use mimalloc::MiMalloc;
+use pyo3::prelude::*;
+
+use crate::sql::{builder, parser};
 
 #[allow(clippy::borrow_deref_ref)]
 pub mod catalog;
@@ -58,6 +58,8 @@ mod udaf;
 #[allow(clippy::borrow_deref_ref)]
 mod udf;
 pub mod utils;
+
+mod optimizer;
 
 #[cfg(feature = "mimalloc")]
 #[global_allocator]
@@ -91,6 +93,9 @@ fn _internal(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<config::PyConfig>()?;
     m.add_class::<sql::logical::PyLogicalPlan>()?;
     m.add_class::<physical_plan::PyExecutionPlan>()?;
+    m.add_class::<parser::PyContextProvider>()?;
+    m.add_class::<optimizer::PyOptimizerContext>()?;
+    m.add_class::<builder::PyLogicalPlanBuilder>()?;
 
     // Register `common` as a submodule. Matching `datafusion-common` https://docs.rs/datafusion-common/latest/datafusion_common/
     let common = PyModule::new(py, "common")?;
@@ -110,6 +115,18 @@ fn _internal(py: Python, m: &PyModule) -> PyResult<()> {
     let store = PyModule::new(py, "object_store")?;
     store::init_module(store)?;
     m.add_submodule(store)?;
+
+    let parser = PyModule::new(py, "parser")?;
+    parser::init_module(parser)?;
+    m.add_submodule(parser)?;
+
+    let optimizer = PyModule::new(py, "optimizer")?;
+    optimizer::init_module(optimizer)?;
+    m.add_submodule(optimizer)?;
+
+    let builder = PyModule::new(py, "builder")?;
+    builder::init_module(builder)?;
+    m.add_submodule(builder)?;
 
     // Register substrait as a submodule
     #[cfg(feature = "substrait")]

@@ -46,6 +46,10 @@ impl PyCast {
     fn data_type(&self) -> PyResult<PyDataType> {
         Ok(self.cast.data_type.clone().into())
     }
+
+    fn __repr__(&self) -> PyResult<String> {
+        Ok(format!("CAST({:?})", self.cast))
+    }
 }
 
 #[pyclass(name = "TryCast", module = "datafusion.expr", subclass)]

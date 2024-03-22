@@ -33,6 +33,10 @@ from ._internal import (
     SessionConfig,
     RuntimeConfig,
     ScalarUDF,
+    ContextProvider,
+    OptimizerContext,
+    LogicalPlan,
+    LogicalPlanBuilder,
 )
 
 from .common import (
@@ -95,6 +99,10 @@ __all__ = [
     "Config",
     "DataFrame",
     "SessionContext",
+    "ContextProvider",
+    "OptimizerContext",
+    "LogicalPlan",
+    "LogicalPlanBuilder",
     "SessionConfig",
     "RuntimeConfig",
     "Expr",

@@ -17,6 +17,7 @@
 
 use datafusion::arrow::array::Array;
 use datafusion::arrow::datatypes::{DataType, IntervalUnit, TimeUnit};
+use datafusion::arrow::pyarrow::PyArrowType;
 use datafusion_common::{DataFusionError, ScalarValue};
 use pyo3::{exceptions::PyValueError, prelude::*};
 
@@ -654,6 +655,33 @@ impl PyDataType {
 impl From<PyDataType> for DataType {
     fn from(data_type: PyDataType) -> DataType {
         data_type.data_type
+    }
+}
+
+#[pymethods]
+impl PyDataType {
+    pub fn to_arrow_str(&self) -> PyResult<String> {
+        match self.data_type {
+            DataType::Boolean => Ok("boolean"),
+            DataType::UInt8 => Ok("uint8"),
+            DataType::UInt16 => Ok("uint16"),
+            DataType::UInt32 => Ok("uint32"),
+            DataType::UInt64 => Ok("uint64"),
+            DataType::Int8 => Ok("int8"),
+            DataType::Int16 => Ok("int16"),
+            DataType::Int32 => Ok("int32"),
+            DataType::Int64 => Ok("int64"),
+            DataType::Float16 => Ok("float16"),
+            DataType::Float32 => Ok("float32"),
+            DataType::Float64 => Ok("float64"),
+            DataType::Date64 => Ok("datetime64"),
+            DataType::Utf8 => Ok("object"),
+            _ => Err(PyValueError::new_err(format!(
+                "Unable to determine Arrow Data Type from type: {:?}",
+                self.data_type
+            ))),
+        }
+        .map(str::to_string)
     }
 }
 

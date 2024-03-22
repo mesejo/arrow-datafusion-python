@@ -16,6 +16,8 @@
 // under the License.
 
 use crate::{common::df_schema::PyDFSchema, sql::logical::PyLogicalPlan};
+use datafusion::arrow::datatypes::Schema;
+use datafusion::arrow::pyarrow::PyArrowType;
 use datafusion_expr::EmptyRelation;
 use pyo3::prelude::*;
 use std::fmt::{self, Display, Formatter};
@@ -61,6 +63,10 @@ impl PyEmptyRelation {
     /// Resulting Schema for this `EmptyRelation` node instance
     fn schema(&self) -> PyResult<PyDFSchema> {
         Ok((*self.empty.schema).clone().into())
+    }
+
+    fn arrow_schema(&self) -> PyArrowType<Schema> {
+        PyArrowType(self.empty.schema.as_ref().into())
     }
 
     /// Get a String representation of this column
