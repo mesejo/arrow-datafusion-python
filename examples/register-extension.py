@@ -11,6 +11,7 @@ def register_plugin_json(context: SessionContext, path: Path, func: str):
 
 
 ctx = SessionContext()
+# The libdatafusion_plugin_json.so was generated from the repo https://github.com/mesejo/datafusion-plugin-json.git
 extension_path = (
     Path(__file__).parent.resolve() / "extension" / "libdatafusion_plugin_json.so"
 )
