@@ -15,9 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "mimalloc")]
-use mimalloc::MiMalloc;
 use pyo3::prelude::*;
+use std::alloc::System;
 
 // Re-export Apache Arrow DataFusion dependencies
 pub use datafusion;
@@ -59,9 +58,8 @@ mod udaf;
 mod udf;
 pub mod utils;
 
-#[cfg(feature = "mimalloc")]
 #[global_allocator]
-static GLOBAL: MiMalloc = MiMalloc;
+static ALLOCATOR: System = System;
 
 // Used to define Tokio Runtime as a Python module attribute
 #[pyclass]

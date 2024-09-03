@@ -56,6 +56,8 @@ parking_lot = "0.12"
 regex-syntax = "0.8"
 syn = "2.0.68"
 url = "2"
+datafusion-plugin-core = { git = "https://github.com/mesejo/datafusion-plugin-core.git", rev = "233dc5b4a7749c254e17b9c168440240eb7e022a"  }
+libloading = "0.8.5"
 
 [build-dependencies]
 pyo3-build-config = "0.21"

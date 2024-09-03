@@ -16,7 +16,11 @@
 // under the License.
 
 use std::collections::{HashMap, HashSet};
+use std::ffi::OsStr;
+use std::io;
+use std::io::ErrorKind;
 use std::path::PathBuf;
+use std::rc::Rc;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -62,6 +66,8 @@ use datafusion::prelude::{
     AvroReadOptions, CsvReadOptions, DataFrame, NdJsonReadOptions, ParquetReadOptions,
 };
 use datafusion_common::ScalarValue;
+use datafusion_plugin_core::{Function, InvocationError, PluginDeclaration};
+use libloading::Library;
 use pyo3::types::{PyDict, PyList, PyTuple};
 use tokio::task::JoinHandle;
 
@@ -967,11 +973,35 @@ impl PySessionContext {
         let stream = wait_for_future(py, fut).map_err(py_datafusion_err)?;
         Ok(PyRecordBatchStream::new(stream?))
     }
+
+    pub fn register_plugin(&mut self, path: PathBuf, name: &str, py: Python) -> PyResult<()> {
+        wait_for_future(py, self._register_plugin(path, name)).map_err(DataFusionError::from)?;
+        Ok(())
+    }
 }
 
 impl PySessionContext {
     async fn _table(&self, name: &str) -> datafusion_common::Result<DataFrame> {
         self.ctx.table(name).await
+    }
+
+    async fn _register_plugin(
+        &mut self,
+        path: PathBuf,
+        name: &str,
+    ) -> datafusion_common::Result<()> {
+        let mut functions = ExternalFunctions::new();
+
+        unsafe {
+            functions.load(path).expect("Function loading failed");
+        }
+
+        // then call the function
+        functions
+            .call(name, &mut self.ctx)
+            .expect("Invocation failed");
+
+        Ok(())
     }
 }
 
@@ -1008,5 +1038,110 @@ impl From<PySessionContext> for SessionContext {
 impl From<SessionContext> for PySessionContext {
     fn from(ctx: SessionContext) -> PySessionContext {
         PySessionContext { ctx }
+    }
+}
+
+#[derive(Default)]
+pub struct ExternalFunctions {
+    functions: HashMap<String, FunctionProxy>,
+    libraries: Vec<Rc<Library>>,
+}
+
+impl ExternalFunctions {
+    pub fn new() -> ExternalFunctions {
+        ExternalFunctions::default()
+    }
+
+    pub fn call(
+        &self,
+        function: &str,
+        argument: &mut SessionContext,
+    ) -> Result<(), InvocationError> {
+        self.functions
+            .get(function)
+            .ok_or_else(|| format!("\"{}\" not found", function))?
+            .call(argument)
+    }
+
+    /// Load a plugin library and add all contained functions to the internal
+    /// function table.
+    ///
+    /// # Safety
+    ///
+    /// A plugin library **must** be implemented using the
+    /// [`plugins_core::plugin_declaration!()`] macro. Trying manually implement
+    /// a plugin without going through that macro will result in undefined
+    /// behaviour.
+    pub unsafe fn load<P: AsRef<OsStr>>(&mut self, library_path: P) -> io::Result<()> {
+        // load the library into memory
+        let library = Rc::new(
+            Library::new(library_path)
+                .map_err(|e| io::Error::new(ErrorKind::Other, e.to_string()))?,
+        );
+
+        // get a pointer to the plugin_declaration symbol.
+        let decl = library
+            .get::<*mut PluginDeclaration>(b"plugin_declaration\0")
+            .map_err(|e| io::Error::new(ErrorKind::Other, e.to_string()))?
+            .read();
+
+        // version checks to prevent accidental ABI incompatibilities
+        if decl.rustc_version != datafusion_plugin_core::RUSTC_VERSION
+            || decl.core_version != datafusion_plugin_core::CORE_VERSION
+        {
+            return Err(io::Error::new(io::ErrorKind::Other, "Version mismatch"));
+        }
+
+        let mut registrar = PluginRegistrar::new(Rc::clone(&library));
+
+        (decl.register)(&mut registrar);
+
+        // add all loaded plugins to the functions map
+        self.functions.extend(registrar.functions);
+        // and make sure ExternalFunctions keeps a reference to the library
+        self.libraries.push(library);
+
+        Ok(())
+    }
+}
+
+struct PluginRegistrar {
+    functions: HashMap<String, FunctionProxy>,
+    lib: Rc<Library>,
+}
+
+impl PluginRegistrar {
+    fn new(lib: Rc<Library>) -> PluginRegistrar {
+        PluginRegistrar {
+            lib,
+            functions: HashMap::default(),
+        }
+    }
+}
+
+impl datafusion_plugin_core::PluginRegistrar for PluginRegistrar {
+    fn register_function(&mut self, name: &str, function: Box<dyn Function>) {
+        let proxy = FunctionProxy {
+            function,
+            _lib: Rc::clone(&self.lib),
+        };
+        self.functions.insert(name.to_string(), proxy);
+    }
+}
+
+/// A proxy object which wraps a [`Function`] and makes sure it can't outlive
+/// the library it came from.
+pub struct FunctionProxy {
+    function: Box<dyn Function>,
+    _lib: Rc<Library>,
+}
+
+impl Function for FunctionProxy {
+    fn call(&self, context: &mut SessionContext) -> Result<(), InvocationError> {
+        self.function.call(context)
+    }
+
+    fn help(&self) -> Option<&str> {
+        self.function.help()
     }
 }

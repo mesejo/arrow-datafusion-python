@@ -1066,6 +1066,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "datafusion-plugin-core"
+version = "0.1.0"
+source = "git+https://github.com/mesejo/datafusion-plugin-core.git?rev=233dc5b4a7749c254e17b9c168440240eb7e022a#233dc5b4a7749c254e17b9c168440240eb7e022a"
+dependencies = [
+ "datafusion",
+ "rustc_version",
+]
+
+[[package]]
 name = "datafusion-python"
 version = "40.0.0"
 dependencies = [
@@ -1076,9 +1085,11 @@ dependencies = [
  "datafusion-expr",
  "datafusion-functions-nested",
  "datafusion-optimizer",
+ "datafusion-plugin-core",
  "datafusion-sql",
  "datafusion-substrait",
  "futures",
+ "libloading",
  "mimalloc",
  "object_store",
  "parking_lot",
@@ -1733,6 +1744,16 @@ dependencies = [
  "core2",
  "hashbrown",
  "rle-decode-fast",
+]
+
+[[package]]
+name = "libloading"
+version = "0.8.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4979f22fdb869068da03c9f7528f8297c6fd2606bc3a4affe42e6a823fdb8da4"
+dependencies = [
+ "cfg-if",
+ "windows-targets 0.52.6",
 ]
 
 [[package]]
